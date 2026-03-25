@@ -1,95 +1,196 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { COLORS, FONTS, RADIUS, SHADOW } from '../constants/theme';
-import { Document } from '../types';
-import { SafeBadge, TagPill, PDFIcon, LinkIcon } from './UI';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Linking, Share, Alert } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
-const fmt = (d: string) => {
+const fmt = (d) => {
   try {
     const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
     if (diff < 60)        return 'Just now';
     if (diff < 3600)      return `${Math.floor(diff/60)} min ago`;
     if (diff < 86400)     return `${Math.floor(diff/3600)} hr ago`;
     return `${Math.floor(diff/86400)} days ago`;
-  } catch { return d; }
+  } catch { return d || 'Unknown date'; }
 };
 
-interface P { item: Document; onPress?: (item: Document) => void }
+// ─── Shared Action Modal ──────────────────────────────────────────────────────
+const ActionModal = ({ visible, onClose, item, type }) => {
+  if (!item) return null;
 
-export const LinkItem: React.FC<P> = ({ item, onPress }) => {
-  const display = item.tags.slice(0, 3);
-  const extra   = item.tags.length - 3;
+  // Safely grab the title and URL regardless of where the data comes from
+  const docTitle = item.title || item.name || 'Document';
+  const docUrl = item.sub || item.url || item.file_url || 'https://google.com';
+
+  const handleOpen = async () => {
+    try { await Linking.openURL(docUrl); } 
+    catch (e) { Alert.alert("Error", "Could not open this link."); }
+    onClose();
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({ message: `Check out this document: ${docTitle}\n${docUrl}`, title: docTitle });
+    } catch (error) { console.log("Error sharing", error); }
+    onClose();
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Document",
+      `Are you sure you want to delete "${docTitle}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => {
+            console.log("Deleted", item.id);
+            onClose();
+        }}
+      ]
+    );
+  };
+
   return (
-    <TouchableOpacity style={s.card} onPress={() => onPress?.(item)} activeOpacity={0.8}>
-      <View style={s.row}>
-        <LinkIcon />
-        <View style={s.body}>
-          <Text style={s.title} numberOfLines={1}>{item.name}</Text>
-          <Text style={s.url}   numberOfLines={1}>{item.url}</Text>
-        </View>
-        <View style={s.scoreCol}>
-          <Text style={s.score}>{item.score != null ? `${Math.round(item.score)}%` : '—'}</Text>
-          <Text style={s.scoreLbl}>match</Text>
-        </View>
-      </View>
-      <View style={s.tagsRow}>
-        {display.map((t, i) => <TagPill key={i} label={t} variant="orange" />)}
-        {extra > 0 && <View style={s.extra}><Text style={s.extraTxt}>+{extra}</Text></View>}
-        <View style={{ flex:1 }} />
-        <SafeBadge status={item.safety} />
-      </View>
-    </TouchableOpacity>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={s.modalContent}>
+          <View style={s.modalDrag} />
+          <View style={s.modalHeader}>
+            <View style={s.modalIconWrap}>
+              <Feather name={type === 'pdf' ? 'file-text' : 'link'} size={24} color="#2D464C" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.modalTitle} numberOfLines={1}>{docTitle}</Text>
+              <Text style={s.modalSub}>{type === 'pdf' ? 'PDF Document' : 'Web Link'}</Text>
+            </View>
+          </View>
+          <View style={s.actionGrid}>
+            <TouchableOpacity style={s.actionBtn} onPress={handleOpen}>
+              <Feather name="external-link" size={22} color="#FFFFFF" />
+              <Text style={s.actionTxt}>Open</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.actionBtn} onPress={handleShare}>
+              <Feather name="share-2" size={22} color="#FFFFFF" />
+              <Text style={s.actionTxt}>Share</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.actionBtn, { backgroundColor: 'rgba(255, 132, 132, 0.1)' }]} onPress={handleDelete}>
+              <Feather name="trash-2" size={22} color="#FF8484" />
+              <Text style={[s.actionTxt, { color: '#FF8484' }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 };
 
-export const PDFItem: React.FC<P> = ({ item, onPress }) => {
-  const display = item.tags.slice(0, 3);
-  const extra   = item.tags.length - 3;
+// ─── LinkItem ─────────────────────────────────────────────────────────────────
+export const LinkItem = ({ item }) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const tags = item.tags || [];
+  
   return (
-    <TouchableOpacity style={s.card} onPress={() => onPress?.(item)} activeOpacity={0.8}>
-      <View style={s.row}>
-        <PDFIcon />
-        <View style={s.body}>
-          <Text style={s.title}    numberOfLines={1}>{item.name}</Text>
-          <Text style={s.subtitle} numberOfLines={1}>{item.description ?? 'PDF Document'}</Text>
-          <Text style={s.meta}>{[item.size, fmt(item.created_at)].filter(Boolean).join(' · ')}</Text>
+    <>
+      <TouchableOpacity style={s.card} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
+        <View style={s.row}>
+          <View style={s.iconWrap}><Feather name="link" size={20} color="#2D464C" /></View>
+          <View style={s.body}>
+            <Text style={s.title} numberOfLines={1}>{item.title || item.name}</Text>
+            <Text style={s.url}   numberOfLines={1}>{item.sub || item.url}</Text>
+          </View>
+          <View style={s.scoreCol}>
+            <Text style={s.score}>{item.match || `${Math.round(item.score || 0)}%`}</Text>
+            <Text style={s.scoreLbl}>Match</Text>
+          </View>
         </View>
-        <SafeBadge status={item.safety} />
-      </View>
-      <View style={s.tagsRow}>
-        {display.map((t, i) => <TagPill key={i} label={t} variant="orange" />)}
-        {extra > 0 && <View style={s.extra}><Text style={s.extraTxt}>+{extra}</Text></View>}
-      </View>
-    </TouchableOpacity>
+        <View style={s.tagsRow}>
+          {tags.slice(0, 3).map((t, i) => <View key={i} style={s.tagPill}><Text style={s.tagText}>{t}</Text></View>)}
+          <View style={{ flex: 1 }} />
+          <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
+        </View>
+      </TouchableOpacity>
+      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type="link" />
+    </>
   );
 };
 
-export const RecentDocItem: React.FC<P> = ({ item, onPress }) => (
-  <TouchableOpacity style={s.recentCard} onPress={() => onPress?.(item)} activeOpacity={0.8}>
-    <View style={s.row}>
-      {item.type === 'pdf' ? <PDFIcon /> : <LinkIcon />}
-      <View style={s.body}>
-        <Text style={s.title} numberOfLines={1}>{item.name}</Text>
-        <Text style={s.meta}>{item.type.toUpperCase()} · {fmt(item.created_at)}</Text>
-      </View>
-      <SafeBadge status={item.safety} />
-    </View>
-  </TouchableOpacity>
-);
+// ─── PDFItem ──────────────────────────────────────────────────────────────────
+export const PDFItem = ({ item }) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const tags = item.tags || [];
+  
+  return (
+    <>
+      <TouchableOpacity style={s.card} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
+        <View style={s.row}>
+          <View style={[s.iconWrap, { backgroundColor: '#FF8484' }]}><Feather name="file-text" size={20} color="#FFFFFF" /></View>
+          <View style={s.body}>
+            <Text style={s.title}    numberOfLines={1}>{item.title || item.name}</Text>
+            <Text style={s.subtitle} numberOfLines={1}>{item.sub || item.description || 'Scanned PDF Document'}</Text>
+          </View>
+          <View style={s.scoreCol}>
+            <Text style={s.score}>{item.match || `${Math.round(item.score || 0)}%`}</Text>
+            <Text style={s.scoreLbl}>Match</Text>
+          </View>
+        </View>
+        <View style={s.tagsRow}>
+          {tags.slice(0, 3).map((t, i) => <View key={i} style={s.tagPill}><Text style={s.tagText}>{t}</Text></View>)}
+          <View style={{ flex: 1 }} />
+          <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
+        </View>
+      </TouchableOpacity>
+      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type="pdf" />
+    </>
+  );
+};
 
+// ─── RecentDocItem ────────────────────────────────────────────────────────────
+export const RecentDocItem = ({ item }) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  return (
+    <>
+      <TouchableOpacity style={s.recentCard} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
+        <View style={s.recentRow}>
+          <View style={[s.iconWrap, item.type === 'pdf' ? { backgroundColor: '#FF8484' } : {}]}>
+            <Feather name={item.type === 'pdf' ? 'file-text' : 'link'} size={18} color={item.type === 'pdf' ? '#FFFFFF' : '#2D464C'} />
+          </View>
+          <View style={s.body}>
+            <Text style={s.title} numberOfLines={1}>{item.title || item.name}</Text>
+            <Text style={s.meta}>{item.type.toUpperCase()}  ·  {fmt(item.created_at)}</Text>
+          </View>
+          <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
+        </View>
+      </TouchableOpacity>
+      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type={item.type} />
+    </>
+  );
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  card:       { backgroundColor:COLORS.card, borderRadius:RADIUS.lg, padding:13, marginHorizontal:16, marginBottom:8, borderWidth:1, borderColor:COLORS.cardBorder, ...SHADOW.sm },
-  recentCard: { backgroundColor:COLORS.card, borderRadius:RADIUS.lg, padding:12, marginBottom:8, borderWidth:1, borderColor:COLORS.cardBorder, ...SHADOW.sm },
-  row:        { flexDirection:'row', alignItems:'flex-start', gap:10 },
-  body:       { flex:1, gap:2 },
-  title:      { fontSize:13, fontWeight:FONTS.semibold, color:COLORS.textPrimary },
-  url:        { fontSize:11, color:COLORS.orange, marginTop:1 },
-  subtitle:   { fontSize:11, color:COLORS.textSecondary, marginTop:1 },
-  meta:       { fontSize:10, color:COLORS.textTertiary, marginTop:1 },
-  scoreCol:   { alignItems:'center', minWidth:36 },
-  score:      { fontSize:14, fontWeight:FONTS.bold, color:COLORS.blue },
-  scoreLbl:   { fontSize:9, color:COLORS.textTertiary },
-  tagsRow:    { flexDirection:'row', flexWrap:'wrap', marginTop:8, alignItems:'center' },
-  extra:      { paddingHorizontal:7, paddingVertical:3, backgroundColor:COLORS.backgroundTertiary, borderRadius:RADIUS.full, marginTop:4, marginRight:4 },
-  extraTxt:   { fontSize:10, color:COLORS.textSecondary, fontWeight:FONTS.medium },
+  card:       { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  recentCard: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  row:        { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  recentRow:  { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  body:       { flex: 1, justifyContent: 'center' },
+  iconWrap:   { width: 44, height: 44, backgroundColor: '#FFFFFF', borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  title:      { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.2, marginBottom: 4 },
+  url:        { fontSize: 12, color: '#F5D1B0', fontWeight: '600' },
+  subtitle:   { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '500' },
+  meta:       { fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: '700', letterSpacing: 0.5 },
+  scoreCol:   { alignItems: 'flex-end', justifyContent: 'center' },
+  score:      { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+  scoreLbl:   { fontSize: 9, color: 'rgba(255,255,255,0.5)', fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
+  tagsRow:    { flexDirection: 'row', flexWrap: 'wrap', marginTop: 18, alignItems: 'center', gap: 8 },
+  tagPill:    { backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  tagText:    { color: '#FFFFFF', fontSize: 10, fontWeight: '700', opacity: 0.9 },
+  safePill:   { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(74, 222, 128, 0.5)' },
+  safeTxt:    { color: '#4ADE80', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#2D464C', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  modalDrag:    { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
+  modalHeader:  { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 30 },
+  modalIconWrap:{ width: 56, height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  modalTitle:   { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  modalSub:     { fontSize: 14, color: '#F5D1B0', fontWeight: '600' },
+  actionGrid:   { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  actionBtn:    { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  actionTxt:    { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }
 });

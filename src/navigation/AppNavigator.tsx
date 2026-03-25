@@ -9,12 +9,11 @@ import {
   PrivateScreen,
   PublicScreen,
   RestrictedScreen,
-  TrashScreen,
 } from '../screens/CategoryScreens';
 import {
   StatsScreen,
   LogsScreen,
-  SettingsScreen,
+  TrashScreen,
 } from '../screens/OtherScreens';
 import SplashScreen from '../screens/SplashScreen';
 import { COLORS } from '../constants/theme';
@@ -42,7 +41,6 @@ const DrawerNav: React.FC = () => (
     <Drawer.Screen name="Trash"      component={TrashScreen}      />
     <Drawer.Screen name="Stats"      component={StatsScreen}      />
     <Drawer.Screen name="Logs"       component={LogsScreen}       />
-    <Drawer.Screen name="Settings"   component={SettingsScreen}   />
   </Drawer.Navigator>
 );
 

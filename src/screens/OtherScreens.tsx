@@ -1,71 +1,72 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  SafeAreaView, StatusBar, ActivityIndicator,
-  TouchableOpacity,
-} from 'react-native';
-import { COLORS, FONTS, RADIUS, SHADOW } from '../constants/theme';
-import { TopBar } from '../components/UI';
-import { fetchLogs } from '../api';
-import { LogEntry, LogStatus } from '../types';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { fetchLogs } from '../api'; 
 import { useStats } from '../hooks/useDocuments';
 
 // ─── Stats Screen ──────────────────────────────────────────────────────────────
-export const StatsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+export const StatsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { stats } = useStats();
 
   const rows = [
-    { label:'Total Documents', value:stats.total_docs,        icon:'📄', color:COLORS.orange },
-    { label:'Safe Documents',  value:stats.safe_docs,         icon:'✅', color:COLORS.green  },
-    { label:'Total Links',     value:stats.total_links,       icon:'🔗', color:COLORS.blue   },
-    { label:'Total PDFs',      value:stats.total_pdfs,        icon:'📑', color:COLORS.purple },
-    { label:'Private',         value:stats.private_count,     icon:'🔒', color:COLORS.blue   },
-    { label:'Public',          value:stats.public_count,      icon:'🌐', color:COLORS.green  },
-    { label:'Restricted',      value:stats.restricted_count,  icon:'⚠️', color:COLORS.orange },
-    { label:'Trash',           value:stats.trash_count,       icon:'🗑️', color:COLORS.purple },
+    { label: 'Total Documents', value: stats?.total_docs,       icon: 'database',       color: '#FFFFFF' },
+    { label: 'Safe Documents',  value: stats?.safe_docs,        icon: 'shield',         color: '#4ADE80' },
+    { label: 'Total Links',     value: stats?.total_links,      icon: 'link',           color: '#F5D1B0' },
+    { label: 'Total PDFs',      value: stats?.total_pdfs,       icon: 'file-text',      color: '#FF8484' },
+    { label: 'Private',         value: stats?.private_count,    icon: 'lock',           color: '#FFFFFF' },
+    { label: 'Public',          value: stats?.public_count,     icon: 'globe',          color: '#FFFFFF' },
+    { label: 'Restricted',      value: stats?.restricted_count, icon: 'alert-triangle', color: '#F5D1B0' },
+    { label: 'Trash',           value: stats?.trash_count,      icon: 'trash-2',        color: 'rgba(255,255,255,0.5)' },
   ];
 
   return (
-    <SafeAreaView style={s.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
-      <TopBar title="Stats" onMenuPress={() => navigation.openDrawer()} />
+    <View style={[s.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      <View style={s.header}>
+        <TouchableOpacity style={s.menuBtn} onPress={() => navigation.openDrawer()}>
+          <Feather name="menu" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>Platform Stats</Text>
+      </View>
       <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
-        <Text style={s.pageTitle}>Statistics</Text>
         <View style={s.grid}>
-          {rows.map(r => (
-            <View key={r.label} style={[s.statCard, SHADOW.sm]}>
-              <View style={[s.statIcon, { backgroundColor: r.color + '18' }]}>
-                <Text style={{ fontSize:24 }}>{r.icon}</Text>
+          {rows.map((r, idx) => (
+            <View key={idx} style={s.statCard}>
+              <View style={[s.statIconWrap, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+                <Feather name={r.icon} size={24} color={r.color} />
               </View>
-              <Text style={s.statVal}>{r.value ?? '—'}</Text>
+              <Text style={s.statVal}>{r.value ?? '0'}</Text>
               <Text style={s.statLbl}>{r.label}</Text>
             </View>
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 // ─── Logs Screen ──────────────────────────────────────────────────────────────
-const MOCK_LOGS: LogEntry[] = [
-  { id:1, message:'AI_Paper.pdf processed successfully',    timestamp:'2024-01-15 09:41', status:'success' },
-  { id:2, message:'arxiv.org/abs/2401 URL tagged',          timestamp:'2024-01-15 09:26', status:'success' },
-  { id:3, message:'Security_Report.pdf flagged for review', timestamp:'2024-01-15 08:55', status:'warning' },
-  { id:4, message:'Supply_Chain_Report.pdf processed',      timestamp:'2024-01-14 17:30', status:'success' },
-  { id:5, message:'WhatsApp sandbox connection verified',   timestamp:'2024-01-14 09:00', status:'info'    },
-  { id:6, message:'Q3_Finance.pdf processing failed',       timestamp:'2024-01-13 14:12', status:'error'   },
+const MOCK_LOGS = [
+  { id: 1, message: 'AI_Paper.pdf processed successfully',    timestamp: '2024-01-15 09:41', status: 'success' },
+  { id: 2, message: 'arxiv.org/abs/2401 URL tagged',          timestamp: '2024-01-15 09:26', status: 'success' },
+  { id: 3, message: 'Security_Report.pdf flagged for review', timestamp: '2024-01-15 08:55', status: 'warning' },
+  { id: 4, message: 'Supply_Chain_Report.pdf processed',      timestamp: '2024-01-14 17:30', status: 'success' },
+  { id: 5, message: 'WhatsApp sandbox connection verified',   timestamp: '2024-01-14 09:00', status: 'info'    },
+  { id: 6, message: 'Q3_Finance.pdf processing failed',       timestamp: '2024-01-13 14:12', status: 'error'   },
 ];
 
-const STATUS_COLOR: Record<LogStatus, string> = {
-  success: COLORS.green, warning: COLORS.orange, error: COLORS.red, info: COLORS.blue,
-};
-const STATUS_ICON: Record<LogStatus, string> = {
-  success:'✅', warning:'⚠️', error:'❌', info:'ℹ️',
+const STATUS_UI = {
+  success: { color: '#4ADE80', icon: 'check-circle' },
+  warning: { color: '#F5D1B0', icon: 'alert-circle' },
+  error:   { color: '#FF8484', icon: 'x-circle' },
+  info:    { color: '#FFFFFF', icon: 'info' },
 };
 
-export const LogsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [logs, setLogs]       = useState<LogEntry[]>([]);
+export const LogsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -76,113 +77,142 @@ export const LogsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }, []);
 
   return (
-    <SafeAreaView style={s.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
-      <TopBar title="Logs" onMenuPress={() => navigation.openDrawer()} />
+    <View style={[s.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      <View style={s.header}>
+        <TouchableOpacity style={s.menuBtn} onPress={() => navigation.openDrawer()}>
+          <Feather name="menu" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>System Logs</Text>
+      </View>
       <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
-        <Text style={s.pageTitle}>Processing Logs</Text>
-        {loading
-          ? <ActivityIndicator color={COLORS.orange} size="large" style={{ marginTop:40 }} />
-          : logs.map(log => (
-            <View key={log.id} style={[s.logCard, SHADOW.sm]}>
-              <View style={[s.logDot, { backgroundColor: STATUS_COLOR[log.status] }]} />
-              <View style={s.logBody}>
-                <Text style={s.logMsg}>{log.message}</Text>
-                <Text style={s.logTime}>{log.timestamp}</Text>
+        {loading ? (
+          <ActivityIndicator color="#F5D1B0" size="large" style={{ marginTop: 40 }} />
+        ) : (
+          logs.map(log => {
+            const ui = STATUS_UI[log.status] || STATUS_UI.info;
+            return (
+              <View key={log.id} style={s.logCard}>
+                <View style={[s.logDot, { backgroundColor: ui.color }]} />
+                <View style={s.logBody}>
+                  <Text style={s.logMsg}>{log.message}</Text>
+                  <Text style={s.logTime}>{log.timestamp}</Text>
+                </View>
+                <Feather name={ui.icon} size={20} color={ui.color} />
               </View>
-              <Text style={{ fontSize:16 }}>{STATUS_ICON[log.status]}</Text>
-            </View>
-          ))
-        }
+            );
+          })
+        )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
-// ─── Settings Screen ──────────────────────────────────────────────────────────
-//
-// WHAT EACH SETTING DOES:
-//
-// ── Backend ──────────────────────────────────────────────────────────────────
-//  • API Base URL      → The address of your FastAPI server. Change this in
-//                        src/api/index.ts → BASE_URL. The app sends all
-//                        document processing requests to this URL.
-//
-//  • WhatsApp Number   → The Twilio sandbox number your users send documents
-//                        to via WhatsApp. This is configured in your Twilio
-//                        dashboard, not in the app itself.
-//
-//  • Connection Status → Shows whether the last API call succeeded. "Connected"
-//                        means the backend responded. "Offline" means the app
-//                        is using mock data.
-//
-// ── Processing ───────────────────────────────────────────────────────────────
-//  • Default Category  → When a new document arrives via WhatsApp, if the
-//                        backend cannot determine public/private, it falls back
-//                        to this category.
-//
-//  • Safety Check      → Whether the backend runs the safety classifier
-//                        (XGBoost / Random Forest) on every document. When
-//                        Enabled, documents that fail get the FLAG badge.
-//
-//  • Tag Language      → The language used for POS tagging, SemBERT scoring,
-//                        and tag generation. Changing this affects which
-//                        HuggingFace model the backend loads.
-//
-//  • Max Tags          → The maximum number of tags the MMR algorithm returns
-//                        per document. More tags = more coverage, fewer = more
-//                        precise.
-//
-// ── App ──────────────────────────────────────────────────────────────────────
-//  • App Version       → Current TagAndTrail version and Expo SDK.
-//  • Build             → Internal build number for debugging.
-//
-// ─────────────────────────────────────────────────────────────────────────────
-export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => (
-  <SafeAreaView style={s.safe}>
-    <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
-    <TopBar title="Settings" onMenuPress={() => navigation.openDrawer()} />
-    <View style={s.body} />
-  </SafeAreaView>
-);
+// ─── Trash Screen ─────────────────────────────────────────────────────────────
+const MOCK_TRASH = [
+  { id: 1, name: 'Old_Financial_Report_2022.pdf', type: 'pdf', deletedAt: 'Deleted 2 days ago' },
+  { id: 2, name: 'https://expired-news-link.com', type: 'link', deletedAt: 'Deleted 5 days ago' },
+];
 
-// ─── Shared styles ─────────────────────────────────────────────────────────────
+export const TrashScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  
+  // Future JS logic hooks
+  const handleRestore = (id) => Alert.alert("Restore", "Document will be restored to its original workspace.");
+  const handleDelete = (id) => Alert.alert("Permanent Delete", "This document will be permanently destroyed.");
+  const handleEmptyTrash = () => Alert.alert("Empty Trash", "Are you sure? This cannot be undone.");
+
+  return (
+    <View style={[s.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Header with Empty Trash Button */}
+      <View style={s.header}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <TouchableOpacity style={s.menuBtn} onPress={() => navigation.openDrawer()}>
+            <Feather name="menu" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Trash</Text>
+        </View>
+        
+        {MOCK_TRASH.length > 0 && (
+          <TouchableOpacity onPress={handleEmptyTrash}>
+            <Text style={s.emptyTrashText}>Empty</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
+        {MOCK_TRASH.length === 0 ? (
+          <View style={s.emptyState}>
+            <Feather name="trash" size={48} color="rgba(255,255,255,0.2)" style={{ marginBottom: 16 }} />
+            <Text style={s.emptyStateTitle}>Trash is Empty</Text>
+            <Text style={s.emptyStateSub}>No documents have been deleted recently.</Text>
+          </View>
+        ) : (
+          MOCK_TRASH.map(item => (
+            <View key={item.id} style={s.trashCard}>
+              <View style={s.trashIconWrap}>
+                <Feather name={item.type === 'pdf' ? 'file-text' : 'link'} size={20} color="#2D464C" />
+              </View>
+              <View style={s.trashBody}>
+                <Text style={s.trashName} numberOfLines={1}>{item.name}</Text>
+                <Text style={s.trashTime}>{item.deletedAt}</Text>
+              </View>
+              
+              {/* Action Buttons */}
+              <View style={s.trashActions}>
+                <TouchableOpacity style={s.actionBtn} onPress={() => handleRestore(item.id)}>
+                  <Feather name="refresh-ccw" size={18} color="#4ADE80" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.actionBtn, { marginLeft: 8 }]} onPress={() => handleDelete(item.id)}>
+                  <Feather name="x" size={20} color="#FF8484" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+    </View>
+  );
+};
+
+// ─── Shared Styles ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe:        { flex:1, backgroundColor: COLORS.navy },
-  body:        { flex:1, backgroundColor: COLORS.background },
-  bodyContent: { padding:16, paddingBottom:44 },
-  pageTitle:   { fontSize:24, fontWeight:FONTS.bold, color:COLORS.textPrimary, marginBottom:20 },
+  container: { flex: 1, backgroundColor: '#2D464C' },
+  
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 25 },
+  menuBtn: { padding: 8, marginLeft: -8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16 },
+  headerTitle: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
 
-  // Stats
-  grid:        { flexDirection:'row', flexWrap:'wrap', gap:10 },
-  statCard:    { width:'47%', backgroundColor:COLORS.card, borderRadius:RADIUS.xl, padding:18, borderWidth:1, borderColor:COLORS.cardBorder, alignItems:'center' },
-  statIcon:    { width:52, height:52, borderRadius:RADIUS.lg, alignItems:'center', justifyContent:'center', marginBottom:10 },
-  statVal:     { fontSize:28, fontWeight:FONTS.bold, color:COLORS.textPrimary },
-  statLbl:     { fontSize:11, color:COLORS.textSecondary, marginTop:3, textAlign:'center' },
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: 24, paddingBottom: 40 },
 
-  // Logs
-  logCard:     { flexDirection:'row', alignItems:'center', backgroundColor:COLORS.card, borderRadius:RADIUS.lg, padding:14, marginBottom:8, borderWidth:1, borderColor:COLORS.cardBorder, gap:12 },
-  logDot:      { width:8, height:8, borderRadius:4, flexShrink:0 },
-  logBody:     { flex:1 },
-  logMsg:      { fontSize:13, color:COLORS.textPrimary, fontWeight:FONTS.medium },
-  logTime:     { fontSize:11, color:COLORS.textTertiary, marginTop:3 },
+  // Stats Grid
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 },
+  statCard: { width: '47%', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', alignItems: 'center', marginBottom: 2 },
+  statIconWrap: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  statVal: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
+  statLbl: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginTop: 4, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  // Settings
-  settingGroup:    { marginBottom:22 },
-  groupLabel:      { fontSize:11, fontWeight:FONTS.semibold, color:COLORS.textTertiary, textTransform:'uppercase', letterSpacing:0.8, marginBottom:3, marginLeft:4 },
-  groupDesc:       { fontSize:11, color:COLORS.textTertiary, marginBottom:8, marginLeft:4 },
-  groupCard:       { backgroundColor:COLORS.card, borderRadius:RADIUS.xl, borderWidth:1, borderColor:COLORS.cardBorder },
-  settingRow:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:14 },
-  rowBorder:       { borderBottomWidth:1, borderBottomColor:COLORS.border },
-  settingLeft:     { flexDirection:'row', alignItems:'center', gap:12, flex:1, paddingRight:8 },
-  settingIconWrap: { width:34, height:34, borderRadius:RADIUS.md, backgroundColor:COLORS.backgroundSecondary, alignItems:'center', justifyContent:'center', flexShrink:0 },
-  settingTextCol:  { flex:1 },
-  settingLabel:    { fontSize:13, color:COLORS.textPrimary, fontWeight:FONTS.medium },
-  settingHint:     { fontSize:10, color:COLORS.textTertiary, marginTop:2, lineHeight:14 },
-  settingValue:    { fontSize:12, color:COLORS.orange, fontWeight:FONTS.medium, flexShrink:0, maxWidth:120, textAlign:'right' },
+  // Logs List
+  logCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', gap: 14 },
+  logDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  logBody: { flex: 1 },
+  logMsg: { fontSize: 14, color: '#FFFFFF', fontWeight: '700', letterSpacing: -0.2 },
+  logTime: { fontSize: 11, color: '#F5D1B0', fontWeight: '600', marginTop: 4, letterSpacing: 0.5 },
 
-  // Info box
-  infoBox:   { backgroundColor:COLORS.bluePale, borderRadius:RADIUS.xl, padding:16, borderWidth:1, borderColor:'#BFDBFE', marginTop:4 },
-  infoTitle: { fontSize:13, fontWeight:FONTS.semibold, color:'#1D4ED8', marginBottom:8 },
-  infoText:  { fontSize:12, color:'#1E40AF', lineHeight:18 },
+  // Trash Screen Styles
+  emptyTrashText: { color: '#FF8484', fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  trashCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  trashIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  trashBody: { flex: 1, paddingRight: 10 },
+  trashName: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
+  trashTime: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+  trashActions: { flexDirection: 'row' },
+  actionBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  
+  emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+  emptyStateTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
+  emptyStateSub: { fontSize: 14, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }
 });
