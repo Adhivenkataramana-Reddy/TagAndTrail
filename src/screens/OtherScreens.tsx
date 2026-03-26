@@ -3,7 +3,8 @@ import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Touch
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { fetchLogs } from '../api'; 
-import { useStats } from '../hooks/useDocuments';
+// 1. Import useDocuments so the Trash screen can access the brain!
+import { useStats, useDocuments } from '../hooks/useDocuments';
 
 // ─── Stats Screen ──────────────────────────────────────────────────────────────
 export const StatsScreen = ({ navigation }) => {
@@ -109,18 +110,36 @@ export const LogsScreen = ({ navigation }) => {
 };
 
 // ─── Trash Screen ─────────────────────────────────────────────────────────────
-const MOCK_TRASH = [
-  { id: 1, name: 'Old_Financial_Report_2022.pdf', type: 'pdf', deletedAt: 'Deleted 2 days ago' },
-  { id: 2, name: 'https://expired-news-link.com', type: 'link', deletedAt: 'Deleted 5 days ago' },
-];
+// 2. Removed MOCK_TRASH from here!
 
 export const TrashScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   
-  // Future JS logic hooks
-  const handleRestore = (id) => Alert.alert("Restore", "Document will be restored to its original workspace.");
-  const handleDelete = (id) => Alert.alert("Permanent Delete", "This document will be permanently destroyed.");
-  const handleEmptyTrash = () => Alert.alert("Empty Trash", "Are you sure? This cannot be undone.");
+  // 3. Pull live data and functions from the Brain!
+  const { docs, restoreFromTrash, deletePermanently } = useDocuments();
+  const trashData = docs.Trash;
+
+  // 4. Connect the action handlers
+  const handleRestore = (item) => {
+    restoreFromTrash(item);
+  };
+
+  const handleDelete = (id) => {
+    Alert.alert("Permanent Delete", "This document will be permanently destroyed. This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deletePermanently(id) }
+    ]);
+  };
+
+  const handleEmptyTrash = () => {
+    Alert.alert("Empty Trash", "Are you sure? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Empty", style: "destructive", onPress: () => {
+          // Loop through and delete everything!
+          trashData.forEach(item => deletePermanently(item.id));
+      }}
+    ]);
+  };
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -135,7 +154,7 @@ export const TrashScreen = ({ navigation }) => {
           <Text style={s.headerTitle}>Trash</Text>
         </View>
         
-        {MOCK_TRASH.length > 0 && (
+        {trashData.length > 0 && (
           <TouchableOpacity onPress={handleEmptyTrash}>
             <Text style={s.emptyTrashText}>Empty</Text>
           </TouchableOpacity>
@@ -143,26 +162,27 @@ export const TrashScreen = ({ navigation }) => {
       </View>
 
       <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
-        {MOCK_TRASH.length === 0 ? (
+        {trashData.length === 0 ? (
           <View style={s.emptyState}>
             <Feather name="trash" size={48} color="rgba(255,255,255,0.2)" style={{ marginBottom: 16 }} />
             <Text style={s.emptyStateTitle}>Trash is Empty</Text>
             <Text style={s.emptyStateSub}>No documents have been deleted recently.</Text>
           </View>
         ) : (
-          MOCK_TRASH.map(item => (
+          trashData.map(item => (
             <View key={item.id} style={s.trashCard}>
               <View style={s.trashIconWrap}>
                 <Feather name={item.type === 'pdf' ? 'file-text' : 'link'} size={20} color="#2D464C" />
               </View>
               <View style={s.trashBody}>
-                <Text style={s.trashName} numberOfLines={1}>{item.name}</Text>
+                {/* Fallback to title if name is missing */}
+                <Text style={s.trashName} numberOfLines={1}>{item.name || item.title}</Text>
                 <Text style={s.trashTime}>{item.deletedAt}</Text>
               </View>
               
               {/* Action Buttons */}
               <View style={s.trashActions}>
-                <TouchableOpacity style={s.actionBtn} onPress={() => handleRestore(item.id)}>
+                <TouchableOpacity style={s.actionBtn} onPress={() => handleRestore(item)}>
                   <Feather name="refresh-ccw" size={18} color="#4ADE80" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.actionBtn, { marginLeft: 8 }]} onPress={() => handleDelete(item.id)}>

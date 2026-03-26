@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'; // Added useEffect
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, Modal, Animated } from 'react-native'; 
+import React, { useState, useEffect } from 'react'; 
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, Modal, Animated, Linking, Share, Alert } from 'react-native'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera'; 
-import { useStats, useRecentDocuments } from '../hooks/useDocuments';
+// 1. Added useDocuments to the import!
+import { useStats, useRecentDocuments, useDocuments } from '../hooks/useDocuments';
 
 // ─── Custom Themed Alert Component ──────────────────────────────────────────
 const ThemedAlert = ({ visible, title, message, onClose }) => (
@@ -20,6 +21,75 @@ const ThemedAlert = ({ visible, title, message, onClose }) => (
     </View>
   </Modal>
 );
+
+// ─── Dashboard Action Modal ───────────────────────────────────────────────────
+// 2. Added onDelete prop to the modal
+const DashboardDocModal = ({ doc, onClose, onDelete }) => {
+  if (!doc) return null;
+
+  const docTitle = doc.title || doc.name || 'Document';
+  const docUrl = doc.sub || doc.url || doc.file_url || 'https://google.com';
+
+  const handleOpen = async () => {
+    try { await Linking.openURL(docUrl); } 
+    catch (e) { Alert.alert("Error", "Could not open this link."); }
+    onClose();
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({ message: `Check out this document: ${docTitle}\n${docUrl}`, title: docTitle });
+    } catch (error) { console.log("Error sharing", error); }
+    onClose();
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Document",
+      `Are you sure you want to delete "${docTitle}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => {
+            if (onDelete) onDelete(doc); // Trigger the live delete!
+            onClose();
+        }}
+      ]
+    );
+  };
+
+  return (
+    <Modal visible={!!doc} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={s.modalContent}>
+          <View style={s.modalDrag} />
+          <View style={s.modalHeader}>
+            <View style={s.modalIconWrap}>
+              <Feather name={doc.type === 'pdf' ? 'file-text' : 'link'} size={24} color="#2D464C" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.modalTitle} numberOfLines={1}>{docTitle}</Text>
+              <Text style={s.modalSub}>{doc.type === 'pdf' ? 'PDF Document' : 'Web Link'}</Text>
+            </View>
+          </View>
+          <View style={s.actionGrid}>
+            <TouchableOpacity style={s.actionBtn} onPress={handleOpen}>
+              <Feather name="external-link" size={22} color="#FFFFFF" />
+              <Text style={s.actionTxt}>Open</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.actionBtn} onPress={handleShare}>
+              <Feather name="share-2" size={22} color="#FFFFFF" />
+              <Text style={s.actionTxt}>Share</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.actionBtn, { backgroundColor: 'rgba(255, 132, 132, 0.1)' }]} onPress={handleDelete}>
+              <Feather name="trash-2" size={22} color="#FF8484" />
+              <Text style={[s.actionTxt, { color: '#FF8484' }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
 
 const OverviewPanel = ({ totalDocs, linksCount, pdfsCount, onScanPress }) => (
   <View style={s.panel}>
@@ -55,10 +125,14 @@ const DashboardScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { stats, loading: docsLoading } = useStats();
   const { recent } = useRecentDocuments();
+  
+  // 3. Grab the live docs and delete function from the Brain!
+  const { docs, deleteToTrash } = useDocuments();
 
-  // --- SCANNER & ALERT STATE ---
+  // --- SCANNER, ALERT & DOC STATE ---
   const [isScannerVisible, setScannerVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '' });
+  const [selectedDoc, setSelectedDoc] = useState(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
@@ -81,10 +155,11 @@ const DashboardScreen = ({ navigation }) => {
     showAlert("Intelligence Linked", `Successfully indexed content from: ${data}`);
   };
 
+  // 4. Use LIVE array lengths for the folder counts so they update instantly
   const cats = [
-    { label: 'Private', icon: 'lock', color: '#FDFBF7', count: stats?.private_count, screen: 'Private' },
-    { label: 'Public', icon: 'globe', color: '#FDFBF7', count: stats?.public_count, screen: 'Public' },
-    { label: 'Restricted', icon: 'alert-triangle', color: '#F5D1B0', count: stats?.restricted_count, screen: 'Restricted' },
+    { label: 'Private', icon: 'lock', color: '#FDFBF7', count: docs.Private?.length || 0, screen: 'Private' },
+    { label: 'Public', icon: 'globe', color: '#FDFBF7', count: docs.Public?.length || 0, screen: 'Public' },
+    { label: 'Restricted', icon: 'alert-triangle', color: '#F5D1B0', count: docs.Restricted?.length || 0, screen: 'Restricted' },
   ];
 
   return (
@@ -96,13 +171,20 @@ const DashboardScreen = ({ navigation }) => {
         onClose={() => setAlertConfig({ ...alertConfig, visible: false })} 
       />
 
+      {/* 5. Pass the delete function into the modal! */}
+      <DashboardDocModal 
+        doc={selectedDoc} 
+        onClose={() => setSelectedDoc(null)} 
+        onDelete={(doc) => deleteToTrash(doc)}
+      />
+
       <View style={s.headerRow}>
         <TouchableOpacity onPress={() => navigation.openDrawer()} style={s.menuBtn}>
           <Feather name="menu" size={26} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={s.brandName}>
-                  TagAnd<Text style={{ color: '#F5D1B0' }}>Trail</Text>
-                </Text>
+          TagAnd<Text style={{ color: '#F5D1B0' }}>Trail</Text>
+        </Text>
       </View>
 
       <View style={s.mainBody}>
@@ -128,9 +210,14 @@ const DashboardScreen = ({ navigation }) => {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.recentScroll} contentContainerStyle={{ paddingRight: 40 }}>
             {recent && recent.map(doc => (
-              <TouchableOpacity key={doc.id} style={s.recentCard}>
+              <TouchableOpacity 
+                key={doc.id} 
+                style={s.recentCard} 
+                onPress={() => setSelectedDoc(doc)}
+                activeOpacity={0.7}
+              >
                 <View style={s.recentType}><Feather name={doc.type === 'pdf' ? 'file' : 'link'} size={14} color="#2D464C" /></View>
-                <Text style={s.recentName} numberOfLines={1}>{doc.name}</Text>
+                <Text style={s.recentName} numberOfLines={1}>{doc.name || doc.title}</Text>
                 <Text style={s.recentMeta}>{doc.type.toUpperCase()}</Text>
               </TouchableOpacity>
             ))}
@@ -156,7 +243,6 @@ const DashboardScreen = ({ navigation }) => {
               <View style={[s.corner, s.topRight]} />
               <View style={[s.corner, s.bottomLeft]} />
               <View style={[s.corner, s.bottomRight]} />
-              {/* Active Scan Line */}
               <View style={s.scanLine} />
             </View>
 
@@ -223,5 +309,17 @@ const s = StyleSheet.create({
   alertTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 10 },
   alertMsg: { color: '#FFFFFF', opacity: 0.7, textAlign: 'center', lineHeight: 20, marginBottom: 25 },
   alertBtn: { backgroundColor: '#F5D1B0', paddingVertical: 14, paddingHorizontal: 30, borderRadius: 20 },
-  alertBtnText: { color: '#2D464C', fontWeight: '800', fontSize: 16 }
+  alertBtnText: { color: '#2D464C', fontWeight: '800', fontSize: 16 },
+
+  // DASHBOARD DOC MODAL
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#2D464C', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  modalDrag:    { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
+  modalHeader:  { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 30 },
+  modalIconWrap:{ width: 56, height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  modalTitle:   { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  modalSub:     { fontSize: 14, color: '#F5D1B0', fontWeight: '600' },
+  actionGrid:   { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  actionBtn:    { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  actionTxt:    { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }
 });

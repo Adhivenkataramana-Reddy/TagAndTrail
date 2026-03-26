@@ -3,6 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+// 1. Import the Brain here
+import { DocumentProvider } from '../hooks/useDocuments';
+
+// 2. Import your new Login Screen!
+import LoginScreen from '../screens/LoginScreen';
+
 import DrawerContent from '../components/DrawerContent';
 import DashboardScreen from '../screens/DashboardScreen';
 import {
@@ -44,14 +50,21 @@ const DrawerNav: React.FC = () => (
   </Drawer.Navigator>
 );
 
-// ─── Root Stack: Splash → Main ────────────────────────────────────────────────
+// ─── Root Stack: Login → Splash → Main ────────────────────────────────────────
 const AppNavigator: React.FC = () => (
-  <NavigationContainer>
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-      <Stack.Screen name="Splash" component={SplashScreen} />
-      <Stack.Screen name="Main"   component={DrawerNav}    />
-    </Stack.Navigator>
-  </NavigationContainer>
+  <DocumentProvider>
+    <NavigationContainer>
+      {/* 3. Change initial route to Login */}
+      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false, animation: 'fade' }}>
+        
+        {/* 4. Add the Login Screen to the stack */}
+        <Stack.Screen name="Login"  component={LoginScreen} />
+        
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Main"   component={DrawerNav}    />
+      </Stack.Navigator>
+    </NavigationContainer>
+  </DocumentProvider>
 );
 
 export default AppNavigator;

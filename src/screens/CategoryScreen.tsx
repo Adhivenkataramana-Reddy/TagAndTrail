@@ -2,43 +2,40 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, TextInput, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { LinkItem, PDFItem } from '../components/DocItems'; // <-- 1. Added this import
+import { LinkItem, PDFItem } from '../components/DocItems';
 
-// Dummy data matching your screenshot
-const DUMMY_DOCS = [
-  { id: '1', type: 'link', title: 'LLM Survey 2024', sub: 'https://hai.stanford.edu/news', tags: ['LLM', 'survey', '2024', '+1'], match: '91%', status: 'SAFE' },
-  { id: '2', type: 'link', title: 'OpenAI GPT-4 Report', sub: 'https://openai.com/research/gpt-4', tags: ['GPT-4', 'openai', 'LLM'], match: '96%', status: 'SAFE' },
-  { id: '3', type: 'pdf', title: 'Supply_Chain_Report.pdf', sub: 'Global logistics 2024 • 3.2 MB', tags: ['logistics', 'supply chain', 'ops'], match: '96%', status: 'SAFE' },
-];
+// 1. Swap the static mock data for our live global hook!
+import { useDocuments } from '../hooks/useDocuments';
 
-// Changed to CategoryScreen and now directly accepting the 'category' prop
 const CategoryScreen = ({ navigation, category = 'Public' }) => {
   const insets = useSafeAreaInsets();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
 
-  // Dynamic configuration based on the workspace type
-  const config = {
-    Private: { icon: 'lock', title: 'Private Workspace' },
-    Public: { icon: 'globe', title: 'Public Workspace' },
-    Restricted: { icon: 'alert-triangle', title: 'Restricted Workspace' },
-    Trash: { icon: 'trash-2', title: 'Trash' }
-  }[category] || { icon: 'folder', title: `${category} Workspace` };
+  // 2. Pull the live documents from the Brain
+  const { docs } = useDocuments();
 
-  // Filter logic
-  const filteredDocs = DUMMY_DOCS.filter(doc => {
-    const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase());
+  // 3. Dynamic configuration using the LIVE data instead of MOCK_ data
+  const config = {
+    Private: { icon: 'lock', title: 'Private Workspace', data: docs.Private || [] },
+    Public: { icon: 'globe', title: 'Public Workspace', data: docs.Public || [] },
+    Restricted: { icon: 'alert-triangle', title: 'Restricted Workspace', data: docs.Restricted || [] },
+    Trash: { icon: 'trash-2', title: 'Trash', data: docs.Trash || [] }
+  }[category] || { icon: 'folder', title: `${category} Workspace`, data: [] };
+
+  // Filter logic remains exactly the same, but now it filters live data!
+  const filteredDocs = config.data.filter(doc => {
+    const docName = doc.title || doc.name || '';
+    const matchesSearch = docName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab = activeTab === 'All' || 
-                      (activeTab === 'Links' && doc.type === 'link') || 
+                      (activeTab === 'Links' && (doc.type === 'link' || doc.type === 'url')) || 
                       (activeTab === 'PDFs' && doc.type === 'pdf');
     return matchesSearch && matchesTab;
   });
 
-  const linksCount = filteredDocs.filter(d => d.type === 'link').length;
+  const linksCount = filteredDocs.filter(d => d.type === 'link' || d.type === 'url').length;
   const pdfsCount = filteredDocs.filter(d => d.type === 'pdf').length;
-
-  // 2. Removed the old renderDocCard function from here
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -91,6 +88,14 @@ const CategoryScreen = ({ navigation, category = 'Public' }) => {
       {/* ── Document List ── */}
       <ScrollView style={s.listContainer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         
+        {/* If there are no results, show a clean empty state */}
+        {filteredDocs.length === 0 && (
+          <View style={{ alignItems: 'center', marginTop: 40, opacity: 0.5 }}>
+            <Feather name="inbox" size={48} color="#FFFFFF" style={{ marginBottom: 12 }} />
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>No documents found</Text>
+          </View>
+        )}
+
         {(activeTab === 'All' || activeTab === 'Links') && linksCount > 0 && (
           <View>
             <View style={s.sectionTitleRow}>
@@ -98,8 +103,7 @@ const CategoryScreen = ({ navigation, category = 'Public' }) => {
               <Text style={s.sectionTitleText}>Web Links</Text>
               <Text style={s.sectionCount}>{linksCount}</Text>
             </View>
-            {/* 3. Replaced renderDocCard with the new LinkItem */}
-            {filteredDocs.filter(d => d.type === 'link').map(doc => <LinkItem key={doc.id} item={doc} />)}
+            {filteredDocs.filter(d => d.type === 'link' || d.type === 'url').map(doc => <LinkItem key={doc.id} item={doc} />)}
           </View>
         )}
 
@@ -110,7 +114,6 @@ const CategoryScreen = ({ navigation, category = 'Public' }) => {
               <Text style={s.sectionTitleText}>PDF Files</Text>
               <Text style={s.sectionCount}>{pdfsCount}</Text>
             </View>
-            {/* 4. Replaced renderDocCard with the new PDFItem */}
             {filteredDocs.filter(d => d.type === 'pdf').map(doc => <PDFItem key={doc.id} item={doc} />)}
           </View>
         )}
@@ -142,5 +145,4 @@ const s = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ADE80' }, 
   sectionTitleText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.2 },
   sectionCount: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.4)' },
-  // 5. Removed unused card styles from here, left everything else untouched
-}); 
+});

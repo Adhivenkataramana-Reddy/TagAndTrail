@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Linking, Share, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
+// 1. Import the Brain!
+import { useDocuments } from '../hooks/useDocuments';
+
 const fmt = (d) => {
   try {
     const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -13,10 +16,10 @@ const fmt = (d) => {
 };
 
 // ─── Shared Action Modal ──────────────────────────────────────────────────────
-const ActionModal = ({ visible, onClose, item, type }) => {
+// 2. Add the onDelete prop to the modal
+const ActionModal = ({ visible, onClose, item, type, onDelete }) => {
   if (!item) return null;
 
-  // Safely grab the title and URL regardless of where the data comes from
   const docTitle = item.title || item.name || 'Document';
   const docUrl = item.sub || item.url || item.file_url || 'https://google.com';
 
@@ -40,7 +43,7 @@ const ActionModal = ({ visible, onClose, item, type }) => {
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => {
-            console.log("Deleted", item.id);
+            if (onDelete) onDelete(item); // 3. Fire the live delete!
             onClose();
         }}
       ]
@@ -84,6 +87,7 @@ const ActionModal = ({ visible, onClose, item, type }) => {
 // ─── LinkItem ─────────────────────────────────────────────────────────────────
 export const LinkItem = ({ item }) => {
   const [modalVisible, setModalVisible] = useState(false);
+  const { deleteToTrash } = useDocuments(); // 4. Grab the delete function
   const tags = item.tags || [];
   
   return (
@@ -106,7 +110,13 @@ export const LinkItem = ({ item }) => {
           <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
         </View>
       </TouchableOpacity>
-      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type="link" />
+      <ActionModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        item={item} 
+        type="link" 
+        onDelete={(doc) => deleteToTrash(doc)} // 5. Pass it to the modal!
+      />
     </>
   );
 };
@@ -114,6 +124,7 @@ export const LinkItem = ({ item }) => {
 // ─── PDFItem ──────────────────────────────────────────────────────────────────
 export const PDFItem = ({ item }) => {
   const [modalVisible, setModalVisible] = useState(false);
+  const { deleteToTrash } = useDocuments(); // 4. Grab the delete function
   const tags = item.tags || [];
   
   return (
@@ -136,7 +147,13 @@ export const PDFItem = ({ item }) => {
           <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
         </View>
       </TouchableOpacity>
-      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type="pdf" />
+      <ActionModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        item={item} 
+        type="pdf" 
+        onDelete={(doc) => deleteToTrash(doc)} // 5. Pass it to the modal!
+      />
     </>
   );
 };
@@ -144,6 +161,8 @@ export const PDFItem = ({ item }) => {
 // ─── RecentDocItem ────────────────────────────────────────────────────────────
 export const RecentDocItem = ({ item }) => {
   const [modalVisible, setModalVisible] = useState(false);
+  const { deleteToTrash } = useDocuments(); // 4. Grab the delete function
+
   return (
     <>
       <TouchableOpacity style={s.recentCard} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
@@ -158,7 +177,13 @@ export const RecentDocItem = ({ item }) => {
           <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
         </View>
       </TouchableOpacity>
-      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type={item.type} />
+      <ActionModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        item={item} 
+        type={item.type} 
+        onDelete={(doc) => deleteToTrash(doc)} // 5. Pass it to the modal!
+      />
     </>
   );
 };
