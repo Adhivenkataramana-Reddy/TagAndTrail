@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'; 
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, Modal, Animated, Linking, Share, Alert } from 'react-native'; 
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, Modal, Animated, Linking, Share, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera'; 
+import { CameraView, useCameraPermissions } from 'expo-camera';
 // 1. Added useDocuments to the import!
 import { useStats, useRecentDocuments, useDocuments } from '../hooks/useDocuments';
 
@@ -31,7 +31,7 @@ const DashboardDocModal = ({ doc, onClose, onDelete }) => {
   const docUrl = doc.sub || doc.url || doc.file_url || 'https://google.com';
 
   const handleOpen = async () => {
-    try { await Linking.openURL(docUrl); } 
+    try { await Linking.openURL(docUrl); }
     catch (e) { Alert.alert("Error", "Could not open this link."); }
     onClose();
   };
@@ -49,10 +49,12 @@ const DashboardDocModal = ({ doc, onClose, onDelete }) => {
       `Are you sure you want to delete "${docTitle}"?`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => {
+        {
+          text: "Delete", style: "destructive", onPress: () => {
             if (onDelete) onDelete(doc); // Trigger the live delete!
             onClose();
-        }}
+          }
+        }
       ]
     );
   };
@@ -125,7 +127,7 @@ const DashboardScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { stats, loading: docsLoading } = useStats();
   const { recent } = useRecentDocuments();
-  
+
   // 3. Grab the live docs and delete function from the Brain!
   const { docs, deleteToTrash } = useDocuments();
 
@@ -165,16 +167,16 @@ const DashboardScreen = ({ navigation }) => {
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
-      
-      <ThemedAlert 
-        {...alertConfig} 
-        onClose={() => setAlertConfig({ ...alertConfig, visible: false })} 
+
+      <ThemedAlert
+        {...alertConfig}
+        onClose={() => setAlertConfig({ ...alertConfig, visible: false })}
       />
 
       {/* 5. Pass the delete function into the modal! */}
-      <DashboardDocModal 
-        doc={selectedDoc} 
-        onClose={() => setSelectedDoc(null)} 
+      <DashboardDocModal
+        doc={selectedDoc}
+        onClose={() => setSelectedDoc(null)}
         onDelete={(doc) => deleteToTrash(doc)}
       />
 
@@ -188,11 +190,11 @@ const DashboardScreen = ({ navigation }) => {
       </View>
 
       <View style={s.mainBody}>
-        <OverviewPanel 
-          totalDocs={stats?.total_docs} 
-          linksCount={stats?.total_links} 
-          pdfsCount={stats?.total_pdfs} 
-          onScanPress={handleOpenScanner} 
+        <OverviewPanel
+          totalDocs={stats?.total_docs}
+          linksCount={stats?.total_links}
+          pdfsCount={stats?.total_pdfs}
+          onScanPress={handleOpenScanner}
         />
 
         <View style={s.section}>
@@ -210,9 +212,9 @@ const DashboardScreen = ({ navigation }) => {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.recentScroll} contentContainerStyle={{ paddingRight: 40 }}>
             {recent && recent.map(doc => (
-              <TouchableOpacity 
-                key={doc.id} 
-                style={s.recentCard} 
+              <TouchableOpacity
+                key={doc.id}
+                style={s.recentCard}
                 onPress={() => setSelectedDoc(doc)}
                 activeOpacity={0.7}
               >
@@ -227,17 +229,24 @@ const DashboardScreen = ({ navigation }) => {
 
       {/* --- QR SCANNER MODAL --- */}
       <Modal visible={isScannerVisible} animationType="slide">
-        <CameraView 
-          style={s.camera} 
-          facing="back"
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        >
-          <View style={s.cameraOverlay}>
+        {/* We wrap everything in a master View so they can stack on top of each other */}
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+
+          {/* 1. THE CAMERA (Notice how it closes immediately with /> ) */}
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          />
+
+          {/* 2. THE OVERLAY (Now it's a sibling, NOT a child!) */}
+          <View style={[StyleSheet.absoluteFill, s.cameraOverlay]}>
+
             <TouchableOpacity style={s.closeCamera} onPress={() => setScannerVisible(false)}>
               <Feather name="arrow-left" size={28} color="#FFFFFF" />
             </TouchableOpacity>
-            
+
             <View style={s.scannerFrame}>
               <View style={[s.corner, s.topLeft]} />
               <View style={[s.corner, s.topRight]} />
@@ -247,9 +256,11 @@ const DashboardScreen = ({ navigation }) => {
             </View>
 
             <Text style={s.scanHint}>Align QR code within the frame</Text>
-            <View style={{ height: 100 }} /> 
+            <View style={{ height: 100 }} />
+
           </View>
-        </CameraView>
+
+        </View>
       </Modal>
     </View>
   );
@@ -314,12 +325,12 @@ const s = StyleSheet.create({
   // DASHBOARD DOC MODAL
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#2D464C', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  modalDrag:    { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
-  modalHeader:  { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 30 },
-  modalIconWrap:{ width: 56, height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  modalTitle:   { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-  modalSub:     { fontSize: 14, color: '#F5D1B0', fontWeight: '600' },
-  actionGrid:   { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  actionBtn:    { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  actionTxt:    { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }
+  modalDrag: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 30 },
+  modalIconWrap: { width: 56, height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  modalSub: { fontSize: 14, color: '#F5D1B0', fontWeight: '600' },
+  actionGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  actionBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  actionTxt: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }
 });

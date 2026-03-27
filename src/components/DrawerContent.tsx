@@ -5,11 +5,12 @@ import {
 } from 'react-native';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
+
 const MAIN_MENU = [
   { key: 'Dashboard', label: 'Home',  icon: 'home' },
   { key: 'Stats',     label: 'Stats', icon: 'bar-chart-2' },
   { key: 'Logs',      label: 'Logs',  icon: 'file-text' },
-  { key: 'Trash',     label: 'Trash', icon: 'trash-2' }, // <-- Added Trash here!
+  { key: 'Trash',     label: 'Trash', icon: 'trash-2' }, 
 ];
 
 const DrawerContent: React.FC<DrawerContentComponentProps> = ({ navigation, state }) => {
@@ -46,13 +47,14 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = ({ navigation, stat
 
       {/* ── App brand header ── */}
       <View style={s.header}>
-        {/* Themed Logo Grid */}
-        <View style={s.logoGrid}>
-          <View style={[s.logoTile, { backgroundColor: '#F5D1B0' }]} />
-          <View style={[s.logoTile, { backgroundColor: 'rgba(245, 209, 176, 0.7)' }]} />
-          <View style={[s.logoTile, { backgroundColor: 'rgba(245, 209, 176, 0.7)' }]} />
-          <View style={[s.logoTile, { backgroundColor: 'rgba(245, 209, 176, 0.3)' }]} />
+        
+        {/* ── Static Physical Tag Logo ── */}
+        <View style={s.tagShapeContainer}>
+          <View style={s.tagTip} />
+          <View style={s.tagHole} />
+          <View style={s.tagBody} />
         </View>
+
         <Text style={s.brandName}>
           TagAnd<Text style={{ color: '#F5D1B0' }}>Trail</Text>
         </Text>
@@ -93,15 +95,47 @@ const s = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 25,
   },
-  logoGrid: {
-    width: 44,
-    height: 44,
+  
+  // ─── Static Tag Logo Styles ───
+  tagShapeContainer: { 
+    width: 60, 
+    height: 34, 
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: 16,
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 20,
+    marginTop: 10,
   },
-  logoTile:  { width: 19, height: 19, borderRadius: 6 },
+  tagBody: {
+    position: 'absolute',
+    right: 0,
+    width: 42,
+    height: 34,
+    backgroundColor: '#F5D1B0', // Light Peach
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  tagTip: {
+    position: 'absolute',
+    left: 17 - 12, // Centered math
+    top: 17 - 12,
+    width: 24, 
+    height: 24, 
+    backgroundColor: '#F5D1B0',
+    transform: [{ rotate: '45deg' }], 
+    borderRadius: 3, 
+  },
+  tagHole: {
+    position: 'absolute',
+    left: 8, 
+    top: 17 - 4, 
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2D464C', // Matches header background
+    zIndex: 10, 
+  },
+
   brandName: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
   brandSub:  { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, fontWeight: '600' },
   accentBar: { width: 32, height: 4, backgroundColor: '#F5D1B0', borderRadius: 2, marginTop: 12 },
