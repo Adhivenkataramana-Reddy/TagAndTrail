@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Linking, Share, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-
+import * as WebBrowser from 'expo-web-browser';
 // 1. Import the Brain!
 import { useDocuments } from '../hooks/useDocuments';
 
@@ -16,16 +16,35 @@ const fmt = (d) => {
 };
 
 // ─── Shared Action Modal ──────────────────────────────────────────────────────
-// 2. Add the onDelete prop to the modal
 const ActionModal = ({ visible, onClose, item, type, onDelete }) => {
   if (!item) return null;
 
-  const docTitle = item.title || item.name || 'Document';
-  const docUrl = item.sub || item.url || item.file_url || 'https://google.com';
+  const docTitle = item.title || 'Document';
+  const docUrl = item.contentUrl || 'https://google.com'; // Mapped to MongoDB
 
+  // 👇 THE MAGIC HAPPENS HERE: Updated to use In-App Browser & Google Viewer
   const handleOpen = async () => {
-    try { await Linking.openURL(docUrl); } 
-    catch (e) { Alert.alert("Error", "Could not open this link."); }
+    try {
+      let finalUrl = docUrl;
+      const isFile = docUrl.toLowerCase().match(/\.(pdf|docx|doc|pptx|ppt|xlsx|xls)$/);
+      const isWebLink = docUrl.startsWith('http') && !isFile;
+
+      if (isFile) {
+        // Wrap files in Google Viewer to prevent downloading
+        finalUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(docUrl)}&embedded=true`;
+      } else if (isWebLink) {
+        // Regular links open as normal
+        finalUrl = docUrl;
+      }
+
+      await WebBrowser.openBrowserAsync(finalUrl, {
+        toolbarColor: '#2D464C',
+        enableBarCollapsing: true,
+        showTitle: true,
+      });
+    } catch (e) { 
+      Alert.alert("Error", "Could not open this link."); 
+    }
     onClose();
   };
 
@@ -39,11 +58,11 @@ const ActionModal = ({ visible, onClose, item, type, onDelete }) => {
   const handleDelete = () => {
     Alert.alert(
       "Delete Document",
-      `Are you sure you want to delete "${docTitle}"?`,
+      `Are you sure you want to move "${docTitle}" to trash?`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => {
-            if (onDelete) onDelete(item); // 3. Fire the live delete!
+        { text: "Trash", style: "destructive", onPress: () => {
+            if (onDelete) onDelete(item);
             onClose();
         }}
       ]
@@ -75,7 +94,7 @@ const ActionModal = ({ visible, onClose, item, type, onDelete }) => {
             </TouchableOpacity>
             <TouchableOpacity style={[s.actionBtn, { backgroundColor: 'rgba(255, 132, 132, 0.1)' }]} onPress={handleDelete}>
               <Feather name="trash-2" size={22} color="#FF8484" />
-              <Text style={[s.actionTxt, { color: '#FF8484' }]}>Delete</Text>
+              <Text style={[s.actionTxt, { color: '#FF8484' }]}>Trash</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -87,8 +106,12 @@ const ActionModal = ({ visible, onClose, item, type, onDelete }) => {
 // ─── LinkItem ─────────────────────────────────────────────────────────────────
 export const LinkItem = ({ item }) => {
   const [modalVisible, setModalVisible] = useState(false);
-  const { deleteToTrash } = useDocuments(); // 4. Grab the delete function
+  const { deleteToTrash } = useDocuments();
   const tags = item.tags || [];
+  
+  // Dynamic Security Logic mapped to MongoDB
+  const isFlagged = item.security_status === 'flagged';
+  const pillColor = isFlagged ? '#FF8484' : '#4ADE80';
   
   return (
     <>
@@ -96,27 +119,19 @@ export const LinkItem = ({ item }) => {
         <View style={s.row}>
           <View style={s.iconWrap}><Feather name="link" size={20} color="#2D464C" /></View>
           <View style={s.body}>
-            <Text style={s.title} numberOfLines={1}>{item.title || item.name}</Text>
-            <Text style={s.url}   numberOfLines={1}>{item.sub || item.url}</Text>
-          </View>
-          <View style={s.scoreCol}>
-            <Text style={s.score}>{item.match || `${Math.round(item.score || 0)}%`}</Text>
-            <Text style={s.scoreLbl}>Match</Text>
+            <Text style={s.title} numberOfLines={1}>{item.title}</Text>
+            <Text style={s.url}   numberOfLines={1}>{item.contentUrl}</Text>
           </View>
         </View>
         <View style={s.tagsRow}>
           {tags.slice(0, 3).map((t, i) => <View key={i} style={s.tagPill}><Text style={s.tagText}>{t}</Text></View>)}
           <View style={{ flex: 1 }} />
-          <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
+          <View style={[s.safePill, { borderColor: `rgba(${isFlagged ? '255, 132, 132' : '74, 222, 128'}, 0.5)` }]}>
+            <Text style={[s.safeTxt, { color: pillColor }]}>{isFlagged ? 'FLAGGED' : 'SAFE'}</Text>
+          </View>
         </View>
       </TouchableOpacity>
-      <ActionModal 
-        visible={modalVisible} 
-        onClose={() => setModalVisible(false)} 
-        item={item} 
-        type="link" 
-        onDelete={(doc) => deleteToTrash(doc)} // 5. Pass it to the modal!
-      />
+      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type="link" onDelete={(doc) => deleteToTrash(doc)} />
     </>
   );
 };
@@ -124,36 +139,35 @@ export const LinkItem = ({ item }) => {
 // ─── PDFItem ──────────────────────────────────────────────────────────────────
 export const PDFItem = ({ item }) => {
   const [modalVisible, setModalVisible] = useState(false);
-  const { deleteToTrash } = useDocuments(); // 4. Grab the delete function
+  const { deleteToTrash } = useDocuments();
   const tags = item.tags || [];
+  
+  // Dynamic Security & Encryption Logic
+  const isFlagged = item.security_status === 'flagged';
+  const isEncrypted = item.metadata?.model_prediction?.prediction === 'encrypted';
+  const pillColor = isFlagged ? '#FF8484' : '#4ADE80';
   
   return (
     <>
       <TouchableOpacity style={s.card} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
         <View style={s.row}>
-          <View style={[s.iconWrap, { backgroundColor: '#FF8484' }]}><Feather name="file-text" size={20} color="#FFFFFF" /></View>
-          <View style={s.body}>
-            <Text style={s.title}    numberOfLines={1}>{item.title || item.name}</Text>
-            <Text style={s.subtitle} numberOfLines={1}>{item.sub || item.description || 'Scanned PDF Document'}</Text>
+          <View style={[s.iconWrap, { backgroundColor: '#FF8484' }]}>
+            {isEncrypted ? <Feather name="lock" size={20} color="#FFFFFF" /> : <Feather name="file-text" size={20} color="#FFFFFF" />}
           </View>
-          <View style={s.scoreCol}>
-            <Text style={s.score}>{item.match || `${Math.round(item.score || 0)}%`}</Text>
-            <Text style={s.scoreLbl}>Match</Text>
+          <View style={s.body}>
+            <Text style={s.title}    numberOfLines={1}>{item.title}</Text>
+            <Text style={s.subtitle} numberOfLines={1}>{isEncrypted ? 'Password Protected PDF' : `${item.category} Document`}</Text>
           </View>
         </View>
         <View style={s.tagsRow}>
           {tags.slice(0, 3).map((t, i) => <View key={i} style={s.tagPill}><Text style={s.tagText}>{t}</Text></View>)}
           <View style={{ flex: 1 }} />
-          <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
+          <View style={[s.safePill, { borderColor: `rgba(${isFlagged ? '255, 132, 132' : '74, 222, 128'}, 0.5)` }]}>
+            <Text style={[s.safeTxt, { color: pillColor }]}>{isFlagged ? 'RESTRICTED' : 'SAFE'}</Text>
+          </View>
         </View>
       </TouchableOpacity>
-      <ActionModal 
-        visible={modalVisible} 
-        onClose={() => setModalVisible(false)} 
-        item={item} 
-        type="pdf" 
-        onDelete={(doc) => deleteToTrash(doc)} // 5. Pass it to the modal!
-      />
+      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type="pdf" onDelete={(doc) => deleteToTrash(doc)} />
     </>
   );
 };
@@ -161,7 +175,10 @@ export const PDFItem = ({ item }) => {
 // ─── RecentDocItem ────────────────────────────────────────────────────────────
 export const RecentDocItem = ({ item }) => {
   const [modalVisible, setModalVisible] = useState(false);
-  const { deleteToTrash } = useDocuments(); // 4. Grab the delete function
+  const { deleteToTrash } = useDocuments();
+
+  const isFlagged = item.security_status === 'flagged';
+  const pillColor = isFlagged ? '#FF8484' : '#4ADE80';
 
   return (
     <>
@@ -171,19 +188,15 @@ export const RecentDocItem = ({ item }) => {
             <Feather name={item.type === 'pdf' ? 'file-text' : 'link'} size={18} color={item.type === 'pdf' ? '#FFFFFF' : '#2D464C'} />
           </View>
           <View style={s.body}>
-            <Text style={s.title} numberOfLines={1}>{item.title || item.name}</Text>
-            <Text style={s.meta}>{item.type.toUpperCase()}  ·  {fmt(item.created_at)}</Text>
+            <Text style={s.title} numberOfLines={1}>{item.title}</Text>
+            <Text style={s.meta}>{item.type.toUpperCase()}  ·  {fmt(item.createdAt)}</Text>
           </View>
-          <View style={s.safePill}><Text style={s.safeTxt}>{item.status || item.safety || 'SAFE'}</Text></View>
+          <View style={[s.safePill, { borderColor: `rgba(${isFlagged ? '255, 132, 132' : '74, 222, 128'}, 0.5)` }]}>
+             <Text style={[s.safeTxt, { color: pillColor }]}>{isFlagged ? 'FLAGGED' : 'SAFE'}</Text>
+          </View>
         </View>
       </TouchableOpacity>
-      <ActionModal 
-        visible={modalVisible} 
-        onClose={() => setModalVisible(false)} 
-        item={item} 
-        type={item.type} 
-        onDelete={(doc) => deleteToTrash(doc)} // 5. Pass it to the modal!
-      />
+      <ActionModal visible={modalVisible} onClose={() => setModalVisible(false)} item={item} type={item.type} onDelete={(doc) => deleteToTrash(doc)} />
     </>
   );
 };

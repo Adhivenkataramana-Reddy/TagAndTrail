@@ -3,11 +3,42 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, Modal,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-// 1. Added useDocuments to the import!
 import { useStats, useRecentDocuments, useDocuments } from '../hooks/useDocuments';
 
+// ─── TYPESCRIPT INTERFACES ──────────────────────────────────────────────────
+interface AlertConfig {
+  visible: boolean;
+  title: string;
+  message: string;
+}
+
+interface ThemedAlertProps extends AlertConfig {
+  onClose: () => void;
+}
+
+interface DashboardDocModalProps {
+  doc: any | null; // Using 'any' for now since your doc structure is flexible
+  onClose: () => void;
+  onDelete: (doc: any) => void;
+}
+
+interface OverviewPanelProps {
+  totalDocs?: number;
+  linksCount?: number;
+  pdfsCount?: number;
+  onScanPress: () => void;
+}
+
+interface WorkspaceTabProps {
+  label: string;
+  count: number;
+  icon: keyof typeof Feather.glyphMap; // Ensures only valid Feather icons are used!
+  color: string;
+  onPress: () => void;
+}
+
 // ─── Custom Themed Alert Component ──────────────────────────────────────────
-const ThemedAlert = ({ visible, title, message, onClose }) => (
+const ThemedAlert: React.FC<ThemedAlertProps> = ({ visible, title, message, onClose }) => (
   <Modal visible={visible} transparent animationType="fade">
     <View style={s.alertOverlay}>
       <View style={s.alertBox}>
@@ -23,12 +54,11 @@ const ThemedAlert = ({ visible, title, message, onClose }) => (
 );
 
 // ─── Dashboard Action Modal ───────────────────────────────────────────────────
-// 2. Added onDelete prop to the modal
-const DashboardDocModal = ({ doc, onClose, onDelete }) => {
+const DashboardDocModal: React.FC<DashboardDocModalProps> = ({ doc, onClose, onDelete }) => {
   if (!doc) return null;
 
-  const docTitle = doc.title || doc.name || 'Document';
-  const docUrl = doc.sub || doc.url || doc.file_url || 'https://google.com';
+  const docTitle = doc.title || 'Document';
+  const docUrl = doc.contentUrl || 'https://google.com';
 
   const handleOpen = async () => {
     try { await Linking.openURL(docUrl); }
@@ -46,12 +76,12 @@ const DashboardDocModal = ({ doc, onClose, onDelete }) => {
   const handleDelete = () => {
     Alert.alert(
       "Delete Document",
-      `Are you sure you want to delete "${docTitle}"?`,
+      `Are you sure you want to move "${docTitle}" to trash?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete", style: "destructive", onPress: () => {
-            if (onDelete) onDelete(doc); // Trigger the live delete!
+          text: "Trash", style: "destructive", onPress: () => {
+            if (onDelete) onDelete(doc);
             onClose();
           }
         }
@@ -84,7 +114,7 @@ const DashboardDocModal = ({ doc, onClose, onDelete }) => {
             </TouchableOpacity>
             <TouchableOpacity style={[s.actionBtn, { backgroundColor: 'rgba(255, 132, 132, 0.1)' }]} onPress={handleDelete}>
               <Feather name="trash-2" size={22} color="#FF8484" />
-              <Text style={[s.actionTxt, { color: '#FF8484' }]}>Delete</Text>
+              <Text style={[s.actionTxt, { color: '#FF8484' }]}>Trash</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -93,7 +123,7 @@ const DashboardDocModal = ({ doc, onClose, onDelete }) => {
   );
 };
 
-const OverviewPanel = ({ totalDocs, linksCount, pdfsCount, onScanPress }) => (
+const OverviewPanel: React.FC<OverviewPanelProps> = ({ totalDocs, linksCount, pdfsCount, onScanPress }) => (
   <View style={s.panel}>
     <View style={s.panelTop}>
       <Text style={s.panelLabel}>Total Documents Indexed</Text>
@@ -115,7 +145,7 @@ const OverviewPanel = ({ totalDocs, linksCount, pdfsCount, onScanPress }) => (
   </View>
 );
 
-const WorkspaceTab = ({ label, count, icon, color, onPress }) => (
+const WorkspaceTab: React.FC<WorkspaceTabProps> = ({ label, count, icon, color, onPress }) => (
   <TouchableOpacity style={[s.folderTab, { backgroundColor: color }]} onPress={onPress}>
     <View style={s.folderIcon}><Feather name={icon} size={20} color="#2D464C" /></View>
     <Text style={s.folderLabel}>{label}</Text>
@@ -123,22 +153,19 @@ const WorkspaceTab = ({ label, count, icon, color, onPress }) => (
   </TouchableOpacity>
 );
 
-const DashboardScreen = ({ navigation }) => {
+const DashboardScreen: React.FC<any> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { stats, loading: docsLoading } = useStats();
   const { recent } = useRecentDocuments();
-
-  // 3. Grab the live docs and delete function from the Brain!
   const { docs, deleteToTrash } = useDocuments();
 
-  // --- SCANNER, ALERT & DOC STATE ---
   const [isScannerVisible, setScannerVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '' });
-  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [alertConfig, setAlertConfig] = useState<AlertConfig>({ visible: false, title: '', message: '' });
+  const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  const showAlert = (title, message) => setAlertConfig({ visible: true, title, message });
+  const showAlert = (title: string, message: string) => setAlertConfig({ visible: true, title, message });
 
   const handleOpenScanner = async () => {
     const { granted } = await requestPermission();
@@ -150,18 +177,17 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
-  const handleBarCodeScanned = ({ type, data }) => {
+  const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     if (scanned) return;
     setScanned(true);
     setScannerVisible(false);
     showAlert("Intelligence Linked", `Successfully indexed content from: ${data}`);
   };
 
-  // 4. Use LIVE array lengths for the folder counts so they update instantly
   const cats = [
-    { label: 'Private', icon: 'lock', color: '#FDFBF7', count: docs.Private?.length || 0, screen: 'Private' },
-    { label: 'Public', icon: 'globe', color: '#FDFBF7', count: docs.Public?.length || 0, screen: 'Public' },
-    { label: 'Restricted', icon: 'alert-triangle', color: '#F5D1B0', count: docs.Restricted?.length || 0, screen: 'Restricted' },
+    { label: 'Private', icon: 'lock' as const, color: '#FDFBF7', count: docs.Private?.length || 0, screen: 'Private' },
+    { label: 'Public', icon: 'globe' as const, color: '#FDFBF7', count: docs.Public?.length || 0, screen: 'Public' },
+    { label: 'Restricted', icon: 'alert-triangle' as const, color: '#F5D1B0', count: docs.Restricted?.length || 0, screen: 'Restricted' },
   ];
 
   return (
@@ -173,7 +199,6 @@ const DashboardScreen = ({ navigation }) => {
         onClose={() => setAlertConfig({ ...alertConfig, visible: false })}
       />
 
-      {/* 5. Pass the delete function into the modal! */}
       <DashboardDocModal
         doc={selectedDoc}
         onClose={() => setSelectedDoc(null)}
@@ -213,13 +238,13 @@ const DashboardScreen = ({ navigation }) => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.recentScroll} contentContainerStyle={{ paddingRight: 40 }}>
             {recent && recent.map(doc => (
               <TouchableOpacity
-                key={doc.id}
+                key={doc._id} 
                 style={s.recentCard}
                 onPress={() => setSelectedDoc(doc)}
                 activeOpacity={0.7}
               >
                 <View style={s.recentType}><Feather name={doc.type === 'pdf' ? 'file' : 'link'} size={14} color="#2D464C" /></View>
-                <Text style={s.recentName} numberOfLines={1}>{doc.name || doc.title}</Text>
+                <Text style={s.recentName} numberOfLines={1}>{doc.title}</Text>
                 <Text style={s.recentMeta}>{doc.type.toUpperCase()}</Text>
               </TouchableOpacity>
             ))}
@@ -229,10 +254,8 @@ const DashboardScreen = ({ navigation }) => {
 
       {/* --- QR SCANNER MODAL --- */}
       <Modal visible={isScannerVisible} animationType="slide">
-        {/* We wrap everything in a master View so they can stack on top of each other */}
         <View style={{ flex: 1, backgroundColor: '#000' }}>
 
-          {/* 1. THE CAMERA (Notice how it closes immediately with /> ) */}
           <CameraView
             style={StyleSheet.absoluteFill}
             facing="back"
@@ -240,9 +263,7 @@ const DashboardScreen = ({ navigation }) => {
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           />
 
-          {/* 2. THE OVERLAY (Now it's a sibling, NOT a child!) */}
           <View style={[StyleSheet.absoluteFill, s.cameraOverlay]}>
-
             <TouchableOpacity style={s.closeCamera} onPress={() => setScannerVisible(false)}>
               <Feather name="arrow-left" size={28} color="#FFFFFF" />
             </TouchableOpacity>
@@ -257,7 +278,6 @@ const DashboardScreen = ({ navigation }) => {
 
             <Text style={s.scanHint}>Align QR code within the frame</Text>
             <View style={{ height: 100 }} />
-
           </View>
 
         </View>

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
@@ -5,9 +6,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-
-const DUMMY_PHONE = "123";
-const DUMMY_PASS = "123";
 
 const LoginScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -92,17 +90,23 @@ const LoginScreen = ({ navigation }: any) => {
   const burstOpacity = flipAnim.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 1, 0.8, 0] });
 
   // ─── ACTIONS ───
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError(''); 
     
+    const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+    if (!API_URL) {
+      setError("API URL is missing in .env file!");
+      return;
+    }
+    
+    // Local App Validations
     if (isLogin) {
-      if (phone === DUMMY_PHONE && password === DUMMY_PASS) {
-        navigation.replace('Splash'); 
-      } else {
-        setError('Invalid phone number or password.');
+      if (!phone || !password) {
+        setError('Please enter phone and password.');
+        return;
       }
     } else {
-      // New User Registration Validation
       if (!phone || !password || !confirmPass) {
         setError('Please fill out all fields.');
         return;
@@ -111,8 +115,33 @@ const LoginScreen = ({ navigation }: any) => {
         setError('Passwords do not match.');
         return;
       }
-      // Success! Auto-login them
-      navigation.replace('Splash');
+    }
+
+    // Backend Connection
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          phoneNumber: phone,
+          password: password 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log(`✅ Success! User Data:`, data);
+        await AsyncStorage.setItem('userId', data._id);
+        navigation.replace('Splash'); 
+      } else {
+        setError(data.error || "Authentication failed");
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      setError("Server unreachable. Check your IP address!");
     }
   };
 
@@ -171,10 +200,10 @@ const LoginScreen = ({ navigation }: any) => {
           
           {/* ─── LOGIN / NEW USER TOGGLE ─── */}
           <View style={s.tabWrap}>
-            <TouchableOpacity onPress={() => setIsLogin(true)} style={[s.tab, isLogin && s.tabActive]}>
+            <TouchableOpacity onPress={() => { setIsLogin(true); setError(''); }} style={[s.tab, isLogin && s.tabActive]}>
               <Text style={[s.tabText, isLogin && s.tabTextActive]}>Login</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsLogin(false)} style={[s.tab, !isLogin && s.tabActive]}>
+            <TouchableOpacity onPress={() => { setIsLogin(false); setError(''); }} style={[s.tab, !isLogin && s.tabActive]}>
               <Text style={[s.tabText, !isLogin && s.tabTextActive]}>New User</Text>
             </TouchableOpacity>
           </View>
@@ -231,7 +260,6 @@ const LoginScreen = ({ navigation }: any) => {
             <Feather name={isLogin ? "arrow-right" : "check-circle"} size={20} color="#2D464C" />
           </TouchableOpacity>
           
-          {isLogin && <Text style={s.hint}>Demo: Phone: {DUMMY_PHONE} | Pass: {DUMMY_PASS}</Text>}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -324,5 +352,4 @@ const s = StyleSheet.create({
   input: { flex: 1, marginLeft: 15, color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   loginBtn: { flexDirection: 'row', backgroundColor: '#F5D1B0', height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10 },
   loginBtnTxt: { color: '#2D464C', fontSize: 18, fontWeight: '800' },
-  hint: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', marginTop: 25, fontSize: 12, fontWeight: '600' }
 });

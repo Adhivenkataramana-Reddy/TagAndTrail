@@ -7,7 +7,7 @@ import { fetchLogs } from '../api';
 import { useStats, useDocuments } from '../hooks/useDocuments';
 
 // ─── Stats Screen ──────────────────────────────────────────────────────────────
-export const StatsScreen = ({ navigation }) => {
+export const StatsScreen: React.FC<any> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { stats } = useStats();
 
@@ -36,7 +36,7 @@ export const StatsScreen = ({ navigation }) => {
           {rows.map((r, idx) => (
             <View key={idx} style={s.statCard}>
               <View style={[s.statIconWrap, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
-                <Feather name={r.icon} size={24} color={r.color} />
+                <Feather name={r.icon as keyof typeof Feather.glyphMap} size={24} color={r.color} />
               </View>
               <Text style={s.statVal}>{r.value ?? '0'}</Text>
               <Text style={s.statLbl}>{r.label}</Text>
@@ -49,33 +49,18 @@ export const StatsScreen = ({ navigation }) => {
 };
 
 // ─── Logs Screen ──────────────────────────────────────────────────────────────
-const MOCK_LOGS = [
-  { id: 1, message: 'AI_Paper.pdf processed successfully',    timestamp: '2024-01-15 09:41', status: 'success' },
-  { id: 2, message: 'arxiv.org/abs/2401 URL tagged',          timestamp: '2024-01-15 09:26', status: 'success' },
-  { id: 3, message: 'Security_Report.pdf flagged for review', timestamp: '2024-01-15 08:55', status: 'warning' },
-  { id: 4, message: 'Supply_Chain_Report.pdf processed',      timestamp: '2024-01-14 17:30', status: 'success' },
-  { id: 5, message: 'WhatsApp sandbox connection verified',   timestamp: '2024-01-14 09:00', status: 'info'    },
-  { id: 6, message: 'Q3_Finance.pdf processing failed',       timestamp: '2024-01-13 14:12', status: 'error'   },
-];
-
-const STATUS_UI = {
+const STATUS_UI: Record<string, { color: string; icon: keyof typeof Feather.glyphMap }> = {
   success: { color: '#4ADE80', icon: 'check-circle' },
   warning: { color: '#F5D1B0', icon: 'alert-circle' },
   error:   { color: '#FF8484', icon: 'x-circle' },
   info:    { color: '#FFFFFF', icon: 'info' },
 };
 
-export const LogsScreen = ({ navigation }) => {
+export const LogsScreen: React.FC<any> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLogs()
-      .then(setLogs)
-      .catch(() => setLogs(MOCK_LOGS))
-      .finally(() => setLoading(false));
-  }, []);
+  
+  // 👇 MAGIC: Pull the live socket logs straight from the Brain!
+  const { logs } = useDocuments(); 
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -87,10 +72,13 @@ export const LogsScreen = ({ navigation }) => {
         <Text style={s.headerTitle}>System Logs</Text>
       </View>
       <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <ActivityIndicator color="#F5D1B0" size="large" style={{ marginTop: 40 }} />
+        {logs.length === 0 ? (
+          <View style={{ marginTop: 40, alignItems: 'center' }}>
+             <Feather name="radio" size={32} color="rgba(255,255,255,0.3)" style={{marginBottom: 10}}/>
+             <Text style={{color: 'rgba(255,255,255,0.5)', fontWeight: '600'}}>Listening for AI updates...</Text>
+          </View>
         ) : (
-          logs.map(log => {
+          logs.map((log: any) => {
             const ui = STATUS_UI[log.status] || STATUS_UI.info;
             return (
               <View key={log.id} style={s.logCard}>
@@ -110,21 +98,21 @@ export const LogsScreen = ({ navigation }) => {
 };
 
 // ─── Trash Screen ─────────────────────────────────────────────────────────────
-// 2. Removed MOCK_TRASH from here!
-
-export const TrashScreen = ({ navigation }) => {
+export const TrashScreen: React.FC<any> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   
   // 3. Pull live data and functions from the Brain!
-  const { docs, restoreFromTrash, deletePermanently } = useDocuments();
+  const { docs, restoreFromTrash, deletePermanently, emptyTrash } = useDocuments();
   const trashData = docs.Trash;
 
   // 4. Connect the action handlers
-  const handleRestore = (item) => {
+  // 👇 FIX: Added ": any" to item
+  const handleRestore = (item: any) => {
     restoreFromTrash(item);
   };
 
-  const handleDelete = (id) => {
+  // 👇 FIX: Added ": string" to id
+  const handleDelete = (id: string) => {
     Alert.alert("Permanent Delete", "This document will be permanently destroyed. This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => deletePermanently(id) }
@@ -135,8 +123,7 @@ export const TrashScreen = ({ navigation }) => {
     Alert.alert("Empty Trash", "Are you sure? This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       { text: "Empty", style: "destructive", onPress: () => {
-          // Loop through and delete everything!
-          trashData.forEach(item => deletePermanently(item.id));
+          emptyTrash(); // <-- Just one clean line! No more looping!
       }}
     ]);
   };
@@ -169,15 +156,16 @@ export const TrashScreen = ({ navigation }) => {
             <Text style={s.emptyStateSub}>No documents have been deleted recently.</Text>
           </View>
         ) : (
-          trashData.map(item => (
-            <View key={item.id} style={s.trashCard}>
+          trashData.map((item: any) => ( // 👇 FIX: Added ": any" to item
+            <View key={item._id} style={s.trashCard}>
               <View style={s.trashIconWrap}>
                 <Feather name={item.type === 'pdf' ? 'file-text' : 'link'} size={20} color="#2D464C" />
               </View>
               <View style={s.trashBody}>
-                {/* Fallback to title if name is missing */}
-                <Text style={s.trashName} numberOfLines={1}>{item.name || item.title}</Text>
-                <Text style={s.trashTime}>{item.deletedAt}</Text>
+                {/* Fallback removed, mapping strictly to title */}
+                <Text style={s.trashName} numberOfLines={1}>{item.title}</Text>
+                {/* Fallback added for deletedAt */}
+                <Text style={s.trashTime}>{item.deletedAt || 'Recently deleted'}</Text>
               </View>
               
               {/* Action Buttons */}
@@ -185,7 +173,7 @@ export const TrashScreen = ({ navigation }) => {
                 <TouchableOpacity style={s.actionBtn} onPress={() => handleRestore(item)}>
                   <Feather name="refresh-ccw" size={18} color="#4ADE80" />
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.actionBtn, { marginLeft: 8 }]} onPress={() => handleDelete(item.id)}>
+                <TouchableOpacity style={[s.actionBtn, { marginLeft: 8 }]} onPress={() => handleDelete(item._id)}>
                   <Feather name="x" size={20} color="#FF8484" />
                 </TouchableOpacity>
               </View>

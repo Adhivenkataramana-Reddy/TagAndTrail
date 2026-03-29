@@ -1,10 +1,11 @@
 import React from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, Platform,
+  ScrollView, Platform, Alert
 } from 'react-native';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MAIN_MENU = [
   { key: 'Dashboard', label: 'Home',  icon: 'home' },
@@ -19,6 +20,38 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = ({ navigation, stat
   const go = (screen: string) => {
     navigation.closeDrawer();
     navigation.navigate(screen as never);
+  };
+
+  // ─── LOGOUT HANDLER ───
+  const handleLogout = () => {
+    Alert.alert(
+      "Log Out",
+      "Are you sure you want to securely log out of your workspace?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Log Out", 
+          style: "destructive", // Makes it red on iOS
+          onPress: async () => {
+            try {
+              // 1. Wipe the user ID from phone memory
+              await AsyncStorage.removeItem('userId');
+              
+              // 2. Close the drawer
+              navigation.closeDrawer();
+              
+              // 3. Send them back to Login (Using reset to clear navigation history)
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
+            } catch (error) {
+              console.error("Error clearing AsyncStorage:", error);
+            }
+          } 
+        }
+      ]
+    );
   };
 
   const Item = ({ itemKey, label, icon }: { itemKey: string; label: string; icon: any }) => {
@@ -70,6 +103,20 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = ({ navigation, stat
           <Item key={m.key} itemKey={m.key} label={m.label} icon={m.icon} />
         ))}
       </ScrollView>
+
+      {/* ── Log Out Button ── */}
+      <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
+        <TouchableOpacity
+          style={s.item}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+        >
+          <View style={s.iconWrap}>
+            <Feather name="log-out" size={20} color="#FF8484" />
+          </View>
+          <Text style={[s.itemLabel, { color: '#FF8484', fontWeight: '800' }]}>Log Out</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* ── App version footer ── */}
       <View style={s.footer}>
